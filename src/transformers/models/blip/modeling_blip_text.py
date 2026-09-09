@@ -55,9 +55,7 @@ class BlipTextEmbeddings(nn.Module):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
-        self.register_buffer(
-            "position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)), persistent=False
-        )
+        self.position_ids = nn.Buffer(torch.arange(config.max_position_embeddings).expand((1, -1)), persistent=False)
 
         self.config = config
 
@@ -649,6 +647,9 @@ class BlipTextLMHeadModel(BlipTextPreTrainedModel, GenerationMixin):
             If set to `True`, `past_key_values` key value states are returned and can be used to speed up decoding (see
             `past_key_values`).
         """
+        # `shift_labels` holds targets that the caller has already aligned with the logits (sequence/context
+        # parallel training shifts before sharding), so pop it here rather than letting it reach the encoder.
+        shift_labels = kwargs.pop("shift_labels", None)
         if labels is not None:
             use_cache = False
 
@@ -675,11 +676,15 @@ class BlipTextLMHeadModel(BlipTextPreTrainedModel, GenerationMixin):
 
         lm_loss = None
         if labels is not None:
-            # we are doing next-token prediction; shift prediction scores and input ids by one
-            shifted_prediction_scores = prediction_scores[:, :-1, :].contiguous()
-            labels = labels[:, 1:].contiguous().to(shifted_prediction_scores.device)
+            if shift_labels is None:
+                # we are doing next-token prediction; shift prediction scores and input ids by one
+                shifted_prediction_scores = prediction_scores[:, :-1, :].contiguous()
+                shift_labels = labels[:, 1:].contiguous()
+            else:
+                shifted_prediction_scores = prediction_scores.contiguous()
+            shift_labels = shift_labels.to(shifted_prediction_scores.device)
             loss_fct = CrossEntropyLoss(reduction=reduction, label_smoothing=self.label_smoothing)
-            lm_loss = loss_fct(shifted_prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
+            lm_loss = loss_fct(shifted_prediction_scores.view(-1, self.config.vocab_size), shift_labels.view(-1))
             if reduction == "none":
                 lm_loss = lm_loss.view(prediction_scores.size(0), -1).sum(1)
 

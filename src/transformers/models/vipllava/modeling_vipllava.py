@@ -151,7 +151,7 @@ class VipLlavaModel(VipLlavaPreTrainedModel):
         **kwargs: Unpack[TransformersKwargs],
     ) -> tuple | BaseModelOutputWithPooling:
         r"""
-        pixel_values (`torch.FloatTensor]` of shape `(batch_size, channels, height, width)`):
+        pixel_values (`torch.FloatTensor` of shape `(batch_size, channels, height, width)`):
             The tensors corresponding to the input images.
         vision_feature_layers (`Union[int, list[int]]`, *optional*):
             The vision feature layer, or the list of indexes of the layers to select
@@ -287,7 +287,7 @@ class VipLlavaForConditionalGeneration(VipLlavaPreTrainedModel, GenerationMixin)
         **kwargs: Unpack[TransformersKwargs],
     ) -> tuple | BaseModelOutputWithPooling:
         r"""
-        pixel_values (`torch.FloatTensor]` of shape `(batch_size, channels, height, width)`):
+        pixel_values (`torch.FloatTensor` of shape `(batch_size, channels, height, width)`):
             The tensors corresponding to the input images.
         vision_feature_layers (`Union[int, list[int]]`, *optional*):
             The vision feature layer, or the list of indexes of the layers to select
@@ -372,7 +372,9 @@ class VipLlavaForConditionalGeneration(VipLlavaPreTrainedModel, GenerationMixin)
 
         loss = None
         if labels is not None:
-            loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.text_config.vocab_size)
+            loss = self.loss_function(
+                logits=logits, labels=labels, vocab_size=self.config.text_config.vocab_size, **lm_kwargs
+            )
 
         return VipLlavaCausalLMOutputWithPast(
             loss=loss,
